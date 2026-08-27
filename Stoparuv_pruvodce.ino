@@ -6,16 +6,14 @@
 #include <Adafruit_GFX.h>
 #include <GxEPD2_3C.h>
 
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSansBold18pt7b.h>
-#include <Fonts/FreeSansBold24pt7b.h>
+// Nová knihovna pro ultimátní češtinu!
+#include <U8g2_for_Adafruit_GFX.h>
 
 // --- NASTAVENÍ WI-FI ---
 const char* ssid = "Internet";
 const char* password = "1234567890";
 
-// --- PINY DISPLEJE ---
+// --- PINY ---
 #define EPD_CS   15
 #define EPD_DC   27
 #define EPD_RST  26
@@ -25,33 +23,37 @@ const char* password = "1234567890";
 #define EPD_MOSI 23
 #define EPD_PWR  4
 
-// --- PINY JOYSTICKU A TLAČÍTEK ---
-#define BTN_HOME    32  // SET
-#define BTN_RANDOM  33  // RST
-#define BTN_SEARCH  14  // MID
-#define BTN_UP      22  // UP
-#define BTN_DWN     21  // DWN
-#define BTN_LEFT    16  // LET
-#define BTN_RIGHT   17  // RHT
+#define BTN_HOME    32  
+#define BTN_RANDOM  33  
+#define BTN_SEARCH  14  
+#define BTN_UP      22  
+#define BTN_DWN     21  
+#define BTN_LEFT    16  
+#define BTN_RIGHT   17  
 
-// Profil displeje
 GxEPD2_3C<GxEPD2_420c_GDEY042Z98, GxEPD2_420c_GDEY042Z98::HEIGHT> display(GxEPD2_420c_GDEY042Z98(EPD_CS, EPD_DC, EPD_RST, EPD_BUSY));
+U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;
 
 const String randomUrl = "https://cs.wikipedia.org/w/api.php?action=query&generator=random&grnnamespace=0&prop=extracts&exintro&explaintext&format=json&origin=*";
 
-// --- STAV APLIKACE ---
 String currentTitle = "";
 String currentText = "";
 int currentPage = 0;
 const int CHARS_PER_PAGE = 450; 
 bool isReadingArticle = false;
 
+// =========================================================================
+// SEM VLOŽ SVŮJ VYGENEROVANÝ KÓD Z IMAGE2CPP (Následující 3 řádky nahraď)
+// =========================================================================
+const unsigned char logo_dont_panic [] PROGMEM = {
+  0xff, 0xff, 0xff // Zástupný kód - NAHRADIT!
+};
+// =========================================================================
+
 void setup() {
   Serial.begin(115200);
   delay(500);
 
-  // --- ZMĚNA ZDE: POUŽÍVÁME PULL-DOWN ---
-  // Tlačítka jsou v klidu na LOW, při stisku (spojení s 3V3 přes COM) jdou na HIGH
   pinMode(BTN_HOME, INPUT_PULLDOWN);
   pinMode(BTN_RANDOM, INPUT_PULLDOWN);
   pinMode(BTN_SEARCH, INPUT_PULLDOWN);
@@ -68,28 +70,28 @@ void setup() {
   display.init(115200, true, 50, false); 
   display.setRotation(1); 
 
+  // Inicializace české U8G2 knihovny a propojení s displejem
+  u8g2Fonts.begin(display);
+  u8g2Fonts.setFontMode(1);                 // Transparentní pozadí písma
+  u8g2Fonts.setFontDirection(0);            // Psaní zleva doprava
+  
   connectWiFi();
   drawHomeScreen();
 }
 
 void loop() {
-  // --- ZMĚNA ZDE: REAGUJEME NA HIGH ---
-  
   if (digitalRead(BTN_HOME) == HIGH || digitalRead(BTN_LEFT) == HIGH) {
-    Serial.println("Akce: DOMU");
     drawHomeScreen();
     delay(1000); 
   }
   
   if (digitalRead(BTN_RANDOM) == HIGH || digitalRead(BTN_RIGHT) == HIGH) {
-    Serial.println("Akce: NAHODA");
     fetchAndDrawRandomArticle();
     delay(1000);
   }
   
   if (digitalRead(BTN_SEARCH) == HIGH) {
-    Serial.println("Akce: HLEDAT");
-    drawErrorScreen("Babel fish offline", "Hlasovy modul nenalezen. Zapojte I2S mikrofon do portu Sub-Etha nebo zkuste nepravdepodobnostni pohon (tlacitko doprava).");
+    drawErrorScreen("Babel fish offline", "Hlasový modul nenalezen. Zapojte I2S mikrofon do portu Sub-Etha nebo zkuste nepravděpodobnostní pohon.");
     isReadingArticle = false;
     delay(1000);
   }
@@ -97,7 +99,6 @@ void loop() {
   if (digitalRead(BTN_DWN) == HIGH && isReadingArticle) {
     int maxPages = (currentText.length() / CHARS_PER_PAGE);
     if (currentPage < maxPages) {
-      Serial.println("Akce: DALSI STRANA");
       currentPage++;
       drawCurrentArticlePage();
     }
@@ -106,7 +107,6 @@ void loop() {
 
   if (digitalRead(BTN_UP) == HIGH && isReadingArticle) {
     if (currentPage > 0) {
-      Serial.println("Akce: PREDCHOZI STRANA");
       currentPage--;
       drawCurrentArticlePage();
     }
@@ -117,24 +117,21 @@ void loop() {
 }
 
 void connectWiFi() {
-  Serial.print("Pripojovani k siti Sub-Etha (Wi-Fi)");
+  Serial.print("Pripojovani k siti...");
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
   }
-  Serial.println("\nPripojeno!");
 }
 
 void fetchAndDrawRandomArticle() {
   if (WiFi.status() != WL_CONNECTED) connectWiFi();
-  
   HTTPClient http;
   http.begin(randomUrl);
   int httpCode = http.GET();
   
   if (httpCode != HTTP_CODE_OK) {
-    drawErrorScreen("Chyba spojeni", "Spojeni s Galaktickou databazi selhalo.");
+    drawErrorScreen("Chyba spojení", "Spojení s Galaktickou databází selhalo.");
     isReadingArticle = false;
     return;
   }
@@ -146,7 +143,7 @@ void fetchAndDrawRandomArticle() {
   DeserializationError error = deserializeJson(doc, payload);
 
   if (error) {
-    drawErrorScreen("Chyba dat", "Data znicena v hyperprostoru.");
+    drawErrorScreen("Chyba dat", "Data byla zničena v hyperprostoru.");
     isReadingArticle = false;
     return;
   }
@@ -162,7 +159,7 @@ void fetchAndDrawRandomArticle() {
   }
 
   if (currentText.length() == 0) {
-     currentText = "Heslo sice existuje, ale neobsahuje zadny text. Zrejme ho snedla blyskavice.";
+     currentText = "Heslo sice existuje, ale neobsahuje žádný text. Zřejmě ho snědla blýskavice.";
   }
 
   currentPage = 0;
@@ -170,47 +167,79 @@ void fetchAndDrawRandomArticle() {
   drawCurrentArticlePage();
 }
 
-void drawCurrentArticlePage() {
-  Serial.println("Prekresluji stranu " + String(currentPage + 1));
+// Geniální funkce pro zalamování dlouhého textu s diakritikou
+void printWrappedText(String text, int startX, int startY, int maxWidth) {
+  int x = startX;
+  int y = startY;
+  int lineHeight = u8g2Fonts.getFontAscent() - u8g2Fonts.getFontDescent() + 4; // Výška řádku
   
+  String word = "";
+  for (int i = 0; i <= text.length(); i++) {
+    char c = (i < text.length()) ? text.charAt(i) : ' ';
+    if (c == ' ' || c == '\n' || i == text.length()) {
+      if (word.length() > 0) {
+        int wordWidth = u8g2Fonts.getUTF8Width(word.c_str());
+        if (x + wordWidth > startX + maxWidth) {
+          x = startX;
+          y += lineHeight;
+        }
+        u8g2Fonts.setCursor(x, y);
+        u8g2Fonts.print(word);
+        x += wordWidth + u8g2Fonts.getUTF8Width(" ");
+        word = "";
+      }
+      if (c == '\n') {
+        x = startX;
+        y += lineHeight;
+      }
+    } else {
+      word += c;
+    }
+  }
+}
+
+void drawCurrentArticlePage() {
   display.setFullWindow();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     
+    // Černá lišta
     display.fillRect(0, 0, 300, 25, GxEPD_BLACK);
-    display.setTextColor(GxEPD_WHITE);
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 17);
-    display.print("Mk.III");
+    u8g2Fonts.setForegroundColor(GxEPD_WHITE);
+    u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf); 
     
-    display.setCursor(200, 17);
+    u8g2Fonts.setCursor(10, 18);
+    u8g2Fonts.print("Mk.III");
+    
     int maxPages = (currentText.length() / CHARS_PER_PAGE) + 1;
-    display.print("STR " + String(currentPage + 1) + "/" + String(maxPages));
+    u8g2Fonts.setCursor(220, 18);
+    u8g2Fonts.print("STR " + String(currentPage + 1) + "/" + String(maxPages));
 
-    display.setTextColor(GxEPD_RED); 
-    display.setFont(&FreeSansBold12pt7b);
-    display.setCursor(10, 60);
-    display.print(currentTitle);
+    // Nadpis červeně
+    u8g2Fonts.setForegroundColor(GxEPD_RED);
+    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+    u8g2Fonts.setFont(u8g2_font_helvB14_tf); 
+    
+    // Zalamování nadpisu
+    printWrappedText(currentTitle, 10, 50, 280);
 
     display.fillRect(10, 75, 280, 3, GxEPD_RED);
 
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 105);
+    // Text černě
+    u8g2Fonts.setForegroundColor(GxEPD_BLACK);
+    u8g2Fonts.setFont(u8g2_font_helvB10_tf); // Velikost pro čtení
     
     int startIndex = currentPage * CHARS_PER_PAGE;
     int endIndex = startIndex + CHARS_PER_PAGE;
-    if (endIndex > currentText.length()) {
-      endIndex = currentText.length();
-    }
+    if (endIndex > currentText.length()) endIndex = currentText.length();
     
     String pageText = currentText.substring(startIndex, endIndex);
-    if (endIndex < currentText.length()) {
-      pageText += "..."; 
-    }
+    if (endIndex < currentText.length()) pageText += "..."; 
     
-    display.print(pageText);
+    // Zalamování článku
+    printWrappedText(pageText, 10, 105, 280);
     
   } while (display.nextPage());
 }
@@ -221,63 +250,64 @@ void drawErrorScreen(String title, String message) {
   do {
     display.fillScreen(GxEPD_WHITE);
     display.fillRect(0, 0, 300, 25, GxEPD_BLACK);
-    display.setTextColor(GxEPD_WHITE);
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 17);
-    display.print("CHYBA SYSTEMU");
+    
+    u8g2Fonts.setForegroundColor(GxEPD_WHITE);
+    u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+    u8g2Fonts.setCursor(10, 18);
+    u8g2Fonts.print("CHYBA SYSTÉMU");
 
-    display.setTextColor(GxEPD_RED);
-    display.setFont(&FreeSansBold18pt7b);
-    display.setCursor(10, 100);
-    display.print(title);
+    u8g2Fonts.setForegroundColor(GxEPD_RED);
+    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+    u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+    u8g2Fonts.setCursor(10, 90);
+    u8g2Fonts.print(title);
 
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 150);
-    display.print(message);
+    u8g2Fonts.setForegroundColor(GxEPD_BLACK);
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+    printWrappedText(message, 10, 140, 280);
+
   } while (display.nextPage());
 }
 
 void drawHomeScreen() {
-  Serial.println("Vykresluji hlavni obrazovku...");
   isReadingArticle = false;
-  
   display.setFullWindow();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     
     display.fillRect(0, 0, 300, 25, GxEPD_BLACK);
-    display.setTextColor(GxEPD_WHITE);
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(10, 17);
-    display.print("Mk.III");
-    display.setCursor(200, 17);
-    display.print("WIFI 42%");
-
-    for(int i = 0; i < 4; i++) {
-      display.drawCircle(150, 100, 40 + i, GxEPD_BLACK);
-    }
-    display.setTextColor(GxEPD_RED);
-    display.setFont(&FreeSansBold24pt7b);
-    display.setCursor(124, 114);
-    display.print("42"); 
+    u8g2Fonts.setForegroundColor(GxEPD_WHITE);
+    u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
     
-    display.setTextColor(GxEPD_BLACK);
-    display.setFont(&FreeSansBold18pt7b); 
-    display.setCursor(45, 195);
-    display.print("STOPARUV");
-    display.setCursor(45, 235);
-    display.print("PRUVODCE");
+    u8g2Fonts.setCursor(10, 18);
+    u8g2Fonts.print("Mk.III");
+    u8g2Fonts.setCursor(200, 18);
+    u8g2Fonts.print("WIFI 42%");
 
-    display.fillRect(30, 265, 240, 4, GxEPD_RED); 
-    display.setFont(&FreeSansBold9pt7b);
-    display.setCursor(25, 305);
-    display.print("RST / DOPRAVA: Nahoda");
-    display.setCursor(25, 335);
-    display.print("MID: Hledat (Mikrofon)");
-    display.setCursor(25, 365);
-    display.print("NAHORU / DOLU: Cteni");
+    // Vykreslení nahraného Loga (Vycentrované horizontálně)
+    // 300 šířka displeje - 200 šířka loga / 2 = 50px X pozice
+    // Výška loga je 200px, začíná na Y = 35 -> končí na 235
+    display.drawBitmap(50, 35, logo_dont_panic, 200, 200, GxEPD_BLACK);
+    
+    // Oddělovač
+    display.fillRect(30, 250, 240, 4, GxEPD_RED); 
+    
+    u8g2Fonts.setForegroundColor(GxEPD_BLACK);
+    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+    u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+    
+    // Nyní už v naprosto čisté češtině!
+    u8g2Fonts.setCursor(35, 290);
+    u8g2Fonts.print("SET / DOPRAVA: Náhoda");
+    
+    u8g2Fonts.setCursor(35, 330);
+    u8g2Fonts.print("MID: Hledat (Mikrofon)");
+    
+    u8g2Fonts.setCursor(35, 370);
+    u8g2Fonts.print("NAHORU / DOLŮ: Čtení textu");
 
   } while (display.nextPage());
 }
