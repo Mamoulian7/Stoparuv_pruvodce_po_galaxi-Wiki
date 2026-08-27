@@ -10,8 +10,8 @@
 #include <U8g2_for_Adafruit_GFX.h>
 
 // --- NASTAVENÍ WI-FI ---
-const char* ssid = "Internet";
-const char* password = "1234567890";
+const char* ssid = "xxx";
+const char* password = "xxx";
 
 // --- PINY ---
 #define EPD_CS   15
